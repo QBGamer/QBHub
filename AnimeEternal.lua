@@ -1,3 +1,4 @@
+
 local saveConfig
 local loadConfig = function()
     if not isfile("AE_config.json") then
@@ -6,10 +7,15 @@ local loadConfig = function()
             speedHack = false,
             autoSpinEnabled = false,
             autoRankEnabled = false,
-            selectedStar = "Star_1"
+            selectedStar = "Star_1",
+            autoGachaEnabled = false,
+            selectedGacha = "Dragon_Race",
+            autoDungeonEnabled = false,
+            selectedDungeonDifficulties = {"Easy"}
         }
     end
 end
+
 
 if not _G.autoEnabled then _G.autoEnabled = false end
 if not _G.speedMultiplier then _G.speedMultiplier = 1 end
@@ -17,6 +23,9 @@ if not _G.autoSpinEnabled then _G.autoSpinEnabled = false end
 if not _G.autoRankEnabled then _G.autoRankEnabled = false end
 if not _G.autoGachaEnabled then _G.autoGachaEnabled = false end
 if not _G.selectedGacha then _G.selectedGacha = "Dragon_Race" end
+if not _G.autoDungeonEnabled then _G.autoDungeonEnabled = false end
+if not _G.selectedDungeonDifficulties then _G.selectedDungeonDifficulties = {"Easy"} end
+
 
 local worldGachaMap = {
     ["Dragon_Race"] = "W01-Dragon_Race",
@@ -24,6 +33,7 @@ local worldGachaMap = {
     ["Swords"] = "W02-Swords",
     ["Pirate_Crew"] = "W02-Pirate_Crew",
     ["Demon_Fruits"] = "W02-Demon_Fruits",
+    ["Zanpakuto"] = "W03-Zanpakuto",
     ["Reiatsu_Color"] = "W03-Reiatsu_Color",
     ["Curses"] = "W04-Curses",
     ["Demon_Arts"] = "W05-Demon_Arts",
@@ -56,12 +66,14 @@ local worldGachaMap = {
     ["Punch_Power"] = "W22-Punch_Power"
 }
 
+
 local autoEnabled = _G.autoEnabled
 local speedMultiplier = _G.speedMultiplier
 local autoSpinEnabled = _G.autoSpinEnabled
 local autoRankEnabled = _G.autoRankEnabled
 
 saveConfig = function()
+    
     local config = {
         autoEnabled = _G.autoEnabled,
         speedHack = _G.speedHack,
@@ -69,7 +81,9 @@ saveConfig = function()
         autoRankEnabled = _G.autoRankEnabled,
         selectedStar = _G.selectedStar,
         autoGachaEnabled = _G.autoGachaEnabled,
-        selectedGacha = _G.selectedGacha
+        selectedGacha = _G.selectedGacha,
+        autoDungeonEnabled = _G.autoDungeonEnabled,
+        selectedDungeonDifficulties = _G.selectedDungeonDifficulties
     }
     
     local HttpService = game:GetService("HttpService")
@@ -80,7 +94,10 @@ saveConfig = function()
     end)
     
     if success then
-        writefile("AE_config.json", encoded)
+        local filePath = "AE_config.json"
+        writefile(filePath, encoded)
+    else
+        warn("Failed to save configuration!")
     end
 end
 
@@ -93,7 +110,9 @@ loadConfig = function()
             autoRankEnabled = false,
             selectedStar = "Star_1",
             autoGachaEnabled = false,
-            selectedGacha = "Dragon_Race"
+            selectedGacha = "Dragon_Race",
+            autoDungeonEnabled = false,
+            selectedDungeonDifficulties = {"Easy"}
         }
     end
     
@@ -105,6 +124,7 @@ loadConfig = function()
     if success then
         return decoded
     else
+        warn("Failed to load configuration!")
         return {
             autoEnabled = false,
             speedMultiplier = 1,
@@ -112,18 +132,22 @@ loadConfig = function()
             autoRankEnabled = false,
             selectedStar = "Star_1",
             autoGachaEnabled = false,
-            selectedGacha = "Dragon_Race"
+            selectedGacha = "Dragon_Race",
+            autoDungeonEnabled = false,
+            selectedDungeonDifficulties = {"Easy"}
         }
     end
 end
+
 
 if getgenv().AnimeEternalScript then
     pcall(function()
         getgenv().AnimeEternalScript:Disconnect()
     end)
     getgenv().AnimeEternalScript = nil
-    wait(0.5)
+    wait(0.5) 
 end
+
 
 if getgenv().AnimeEternalInputConnection then
     pcall(function()
@@ -132,12 +156,14 @@ if getgenv().AnimeEternalInputConnection then
     getgenv().AnimeEternalInputConnection = nil
 end
 
+
 if getgenv().AnimeEternalSpeedCheck then
     pcall(function()
         getgenv().AnimeEternalSpeedCheck:Disconnect()
     end)
     getgenv().AnimeEternalSpeedCheck = nil
 end
+
 
 if getgenv().AnimeEternalUI then
     pcall(function()
@@ -153,7 +179,11 @@ if getgenv().AnimeEternalUICheck then
     getgenv().AnimeEternalUICheck = nil
 end
 
+
+
+
 local config = loadConfig()
+
 
 _G.autoEnabled = config.autoEnabled or false
 _G.speedMultiplier = config.speedMultiplier or 1
@@ -162,10 +192,15 @@ _G.autoRankEnabled = config.autoRankEnabled or false
 _G.selectedStar = config.selectedStar or "Star_1"
 _G.autoGachaEnabled = config.autoGachaEnabled or false
 _G.selectedGacha = config.selectedGacha or "Dragon_Race"
+_G.autoDungeonEnabled = config.autoDungeonEnabled or false
+_G.selectedDungeonDifficulties = config.selectedDungeonDifficulties or {"Easy"}
+
 
 local currentTargetId = nil
 local claimCodesEnabled = false
 local lastRankTime = 0
+local dungeonEnterTime = 0
+
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -175,34 +210,38 @@ local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
+
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AnimeEternalUI"
 screenGui.ResetOnSpawn = false
-screenGui.DisplayOrder = 9999
+screenGui.DisplayOrder = 9999 
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-screenGui.IgnoreGuiInset = true
+screenGui.IgnoreGuiInset = true 
 screenGui.Parent = playerGui
 getgenv().AnimeEternalUI = screenGui
 
+
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 360, 0, 310)
+mainFrame.Size = UDim2.new(0, 360, 0, 310) 
 mainFrame.Position = UDim2.new(0, 100, 0, 100)
 mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
 
+
 local tabContainer = Instance.new("Frame")
 tabContainer.Name = "TabContainer"
-tabContainer.Size = UDim2.new(0, 60, 1, -30)
-tabContainer.Position = UDim2.new(0, 0, 0, 30)
+tabContainer.Size = UDim2.new(0, 60, 1, -30) 
+tabContainer.Position = UDim2.new(0, 0, 0, 30) 
 tabContainer.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 tabContainer.BorderSizePixel = 0
 tabContainer.Parent = mainFrame
 
+
 local gameTab = Instance.new("TextButton")
 gameTab.Name = "GameTab"
-gameTab.Size = UDim2.new(1, 0, 0, 70)
+gameTab.Size = UDim2.new(1, 0, 0, 70) 
 gameTab.Position = UDim2.new(0, 0, 0, 0)
 gameTab.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 gameTab.BorderSizePixel = 0
@@ -212,10 +251,11 @@ gameTab.TextSize = 16
 gameTab.Font = Enum.Font.GothamBold
 gameTab.Parent = tabContainer
 
+
 local miscTab = Instance.new("TextButton")
 miscTab.Name = "MiscTab"
-miscTab.Size = UDim2.new(1, 0, 0, 70)
-miscTab.Position = UDim2.new(0, 0, 0, 70)
+miscTab.Size = UDim2.new(1, 0, 0, 70) 
+miscTab.Position = UDim2.new(0, 0, 0, 70) 
 miscTab.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 miscTab.BorderSizePixel = 0
 miscTab.Text = "Misc"
@@ -224,23 +264,25 @@ miscTab.TextSize = 16
 miscTab.Font = Enum.Font.GothamBold
 miscTab.Parent = tabContainer
 
+
 local gameFrame = Instance.new("Frame")
 gameFrame.Name = "GameFrame"
-gameFrame.Size = UDim2.new(1, -50, 1, -30)
-gameFrame.Position = UDim2.new(0, 50, 0, 30)
+gameFrame.Size = UDim2.new(1, -50, 1, -30) 
+gameFrame.Position = UDim2.new(0, 50, 0, 30) 
 gameFrame.BackgroundTransparency = 1
 gameFrame.Parent = mainFrame
 
 local scrollFrame = Instance.new("ScrollingFrame")
 scrollFrame.Name = "ContentScrollFrame"
-scrollFrame.Size = UDim2.new(1, -10, 1, -10)
+scrollFrame.Size = UDim2.new(1, -10, 1, -10) 
 scrollFrame.Position = UDim2.new(0, 5, 0, 5)
 scrollFrame.BackgroundTransparency = 1
 scrollFrame.BorderSizePixel = 0
 scrollFrame.ScrollBarThickness = 4
 scrollFrame.ScrollingDirection = Enum.ScrollingDirection.Y
-scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 450)
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 490) 
 scrollFrame.Parent = gameFrame
+
 
 local farmCategory = Instance.new("TextLabel")
 farmCategory.Name = "FarmCategory"
@@ -257,7 +299,7 @@ farmCategory.Parent = scrollFrame
 local upgradeCategory = Instance.new("TextLabel")
 upgradeCategory.Name = "UpgradeCategory"
 upgradeCategory.Size = UDim2.new(1, -30, 0, 30)
-upgradeCategory.Position = UDim2.new(0, 15, 0, 90)
+upgradeCategory.Position = UDim2.new(0, 15, 0, 140) 
 upgradeCategory.BackgroundTransparency = 1
 upgradeCategory.Text = "UPGRADE"
 upgradeCategory.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -269,7 +311,7 @@ upgradeCategory.Parent = scrollFrame
 local gachaCategory = Instance.new("TextLabel")
 gachaCategory.Name = "GachaCategory"
 gachaCategory.Size = UDim2.new(1, -30, 0, 30)
-gachaCategory.Position = UDim2.new(0, 15, 0, 175)
+gachaCategory.Position = UDim2.new(0, 15, 0, 205) 
 gachaCategory.BackgroundTransparency = 1
 gachaCategory.Text = "GACHA"
 gachaCategory.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -278,17 +320,24 @@ gachaCategory.Font = Enum.Font.GothamBlack
 gachaCategory.TextXAlignment = Enum.TextXAlignment.Left
 gachaCategory.Parent = scrollFrame
 
+
 local miscFrame = Instance.new("Frame")
 miscFrame.Name = "MiscFrame"
-miscFrame.Size = UDim2.new(1, -50, 1, -30)
-miscFrame.Position = UDim2.new(0, 50, 0, 30)
+miscFrame.Size = UDim2.new(1, -50, 1, -30) 
+miscFrame.Position = UDim2.new(0, 50, 0, 30) 
 miscFrame.BackgroundTransparency = 1
 miscFrame.Visible = false
 miscFrame.Parent = mainFrame
 
+
 local function switchTab(toGame)
+    
+    
+    
+    
     gameFrame.Visible = toGame
     miscFrame.Visible = not toGame
+    
     
     local activeIndicator = Instance.new("Frame")
     activeIndicator.Name = "ActiveIndicator"
@@ -297,11 +346,13 @@ local function switchTab(toGame)
     activeIndicator.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
     activeIndicator.BorderSizePixel = 0
     
+    
     for _, tab in pairs(tabContainer:GetChildren()) do
         if tab:FindFirstChild("ActiveIndicator") then
             tab.ActiveIndicator:Destroy()
         end
     end
+    
     
     activeIndicator:Clone().Parent = toGame and gameTab or miscTab
 end
@@ -314,9 +365,11 @@ miscTab.MouseButton1Click:Connect(function()
     switchTab(false)
 end)
 
+
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 10)
 corner.Parent = mainFrame
+
 
 local title = Instance.new("TextLabel")
 title.Name = "Title"
@@ -330,24 +383,27 @@ title.TextSize = 14
 title.Font = Enum.Font.GothamBold
 title.Parent = mainFrame
 
+
 local titleCorner = Instance.new("UICorner")
 titleCorner.CornerRadius = UDim.new(0, 10)
 titleCorner.Parent = title
 
+
 local function createToggleButton(name, text, parent)
     if not parent or not parent.Parent then
+        warn("Parent is null or destroyed when creating toggle button:", name)
         return nil, nil, nil
     end
 
-    local container = Instance.new("Frame")
-    container.Name = name .. "Container"
-    container.Size = UDim2.new(0, 250, 0, 40)
-    container.BackgroundTransparency = 1
-    container.Parent = parent
-    
+        
+        local container = Instance.new("Frame")
+        container.Name = name .. "Container"
+        container.Size = UDim2.new(0, 250, 0, 40) 
+        container.BackgroundTransparency = 1
+        container.Parent = parent    
     local label = Instance.new("TextLabel")
     label.Name = "Label"
-    label.Size = UDim2.new(1, -60, 1, 0)
+    label.Size = UDim2.new(1, -60, 1, 0) 
     label.Position = UDim2.new(0, 0, 0, 0)
     label.BackgroundTransparency = 1
     label.Text = text
@@ -357,6 +413,7 @@ local function createToggleButton(name, text, parent)
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = container
     
+    
     local hitbox = Instance.new("TextButton")
     hitbox.Name = "ToggleHitbox"
     hitbox.Size = UDim2.new(0, 40, 0, 20)
@@ -364,6 +421,7 @@ local function createToggleButton(name, text, parent)
     hitbox.BackgroundTransparency = 1
     hitbox.Text = ""
     hitbox.Parent = container
+    
     
     local toggleBg = Instance.new("Frame")
     toggleBg.Name = "ToggleBackground"
@@ -374,6 +432,7 @@ local function createToggleButton(name, text, parent)
     local bgCorner = Instance.new("UICorner")
     bgCorner.CornerRadius = UDim.new(1, 0)
     bgCorner.Parent = toggleBg
+    
     
     local toggleKnob = Instance.new("Frame")
     toggleKnob.Name = "ToggleKnob"
@@ -389,17 +448,23 @@ local function createToggleButton(name, text, parent)
     return hitbox, toggleKnob, toggleBg
 end
 
+
 local function updateToggleState(button, toggleKnob, toggleBg, enabled)
+    
     if not toggleKnob or not toggleKnob.Parent then
+        warn("Toggle knob is null or destroyed")
         return
     end
     
     if not toggleBg or not toggleBg.Parent then
+        warn("Toggle background is null or destroyed")
         return
     end
     
+    
     local targetPosition = enabled and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
     local targetColor = enabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(70, 70, 70)
+    
     
     local success, knobTween = pcall(function()
         return TweenService:Create(toggleKnob, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = targetPosition})
@@ -408,6 +473,7 @@ local function updateToggleState(button, toggleKnob, toggleBg, enabled)
     if success and knobTween then
         knobTween:Play()
     else
+        
         toggleKnob.Position = targetPosition
     end
     
@@ -418,9 +484,11 @@ local function updateToggleState(button, toggleKnob, toggleBg, enabled)
     if success2 and bgTween then
         bgTween:Play()
     else
+        
         toggleBg.BackgroundColor3 = targetColor
     end
 end
+
 
 local function createDropdown(name, options, parent, position)
     local dropdownContainer = Instance.new("Frame")
@@ -434,6 +502,7 @@ local function createDropdown(name, options, parent, position)
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 8)
     corner.Parent = dropdownContainer
+    
     
     local selected = Instance.new("TextBox")
     selected.Name = "Selected"
@@ -462,13 +531,14 @@ local function createDropdown(name, options, parent, position)
     
     local optionsFrame = Instance.new("Frame")
     optionsFrame.Name = "OptionsFrame"
-    optionsFrame.Size = UDim2.new(1, 0, 0, 175)
+    optionsFrame.Size = UDim2.new(1, 0, 0, 175) 
     optionsFrame.Position = UDim2.new(0, 0, 1, 5)
     optionsFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
     optionsFrame.BorderSizePixel = 0
     optionsFrame.Visible = false
     optionsFrame.ZIndex = 100
     optionsFrame.Parent = screenGui
+    
     
     local searchBox = Instance.new("TextBox")
     searchBox.Name = "SearchBox"
@@ -485,14 +555,20 @@ local function createDropdown(name, options, parent, position)
     searchBox.ZIndex = 100
     searchBox.Parent = optionsFrame
     
+    
+    if name == "DungeonSelector" then
+        searchBox.Visible = false
+    end
+    
+    
     local searchBoxCorner = Instance.new("UICorner")
     searchBoxCorner.CornerRadius = UDim.new(0, 6)
     searchBoxCorner.Parent = searchBox
     
     local optionsList = Instance.new("ScrollingFrame")
     optionsList.Name = "OptionsList"
-    optionsList.Size = UDim2.new(1, -10, 1, -45)
-    optionsList.Position = UDim2.new(0, 5, 0, 40)
+    optionsList.Size = UDim2.new(1, -10, 1, -45) 
+    optionsList.Position = UDim2.new(0, 5, 0, 40) 
     optionsList.BackgroundTransparency = 1
     optionsList.BorderSizePixel = 0
     optionsList.ScrollBarThickness = 4
@@ -501,9 +577,43 @@ local function createDropdown(name, options, parent, position)
     optionsList.ZIndex = 100
     optionsList.Parent = optionsFrame
     
+    
+    local closeButton = nil
+    if name == "DungeonSelector" then
+        
+        optionsFrame.Size = UDim2.new(1, 0, 0, 145) 
+        
+        
+        optionsList.Size = UDim2.new(1, -10, 1, -35) 
+        optionsList.Position = UDim2.new(0, 5, 0, 5) 
+        
+        closeButton = Instance.new("TextButton")
+        closeButton.Name = "CloseButton"
+        closeButton.Size = UDim2.new(0, 60, 0, 25)
+        closeButton.Position = UDim2.new(1, -70, 0, 5)
+        closeButton.BackgroundColor3 = Color3.fromRGB(170, 50, 50)
+        closeButton.BorderSizePixel = 0
+        closeButton.Text = "Close"
+        closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        closeButton.TextSize = 12
+        closeButton.Font = Enum.Font.GothamBold
+        closeButton.ZIndex = 100
+        closeButton.Parent = optionsFrame
+        
+        local closeCorner = Instance.new("UICorner")
+        closeCorner.CornerRadius = UDim.new(0, 4)
+        closeCorner.Parent = closeButton
+        
+        closeButton.MouseButton1Click:Connect(function()
+            optionsFrame.Visible = false
+        end)
+    end
+    
+    
     local optionsCorner = Instance.new("UICorner")
     optionsCorner.CornerRadius = UDim.new(0, 8)
     optionsCorner.Parent = optionsFrame
+    
     
     local function updateOptionsFramePosition()
         local dropdownPos = dropdownContainer.AbsolutePosition
@@ -512,7 +622,13 @@ local function createDropdown(name, options, parent, position)
         optionsFrame.Size = UDim2.new(0, dropdownSize.X, 0, 140)
     end
     
+    local optionsCorner = Instance.new("UICorner")
+    optionsCorner.CornerRadius = UDim.new(0, 8)
+    optionsCorner.Parent = optionsFrame
+    
+    
     local function createOptionButtons(filterText)
+        
         for _, child in pairs(optionsList:GetChildren()) do
             if child:IsA("TextButton") then
                 child:Destroy()
@@ -520,8 +636,14 @@ local function createDropdown(name, options, parent, position)
         end
         
         local yOffset = 0
+        
         for _, option in ipairs(options) do
-            if filterText == "" or string.lower(option):find(string.lower(filterText)) then
+            local shouldShow = true
+            if name ~= "DungeonSelector" then
+                shouldShow = filterText == "" or string.lower(option):find(string.lower(filterText))
+            end
+            
+            if shouldShow then
                 local optionButton = Instance.new("TextButton")
                 optionButton.Name = option
                 optionButton.Size = UDim2.new(1, -8, 0, 35)
@@ -535,30 +657,91 @@ local function createDropdown(name, options, parent, position)
                 optionButton.ZIndex = 100
                 optionButton.Parent = optionsList
                 
+                
+                if name == "DungeonSelector" and _G.selectedDungeonDifficulties then
+                    for _, selected in ipairs(_G.selectedDungeonDifficulties) do
+                        if selected == option then
+                            optionButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+                            optionButton.BackgroundTransparency = 0.2
+                            break
+                        end
+                    end
+                end
+                
+                
                 local buttonCorner = Instance.new("UICorner")
                 buttonCorner.CornerRadius = UDim.new(0, 6)
                 buttonCorner.Parent = optionButton
                 
+                
                 optionButton.MouseEnter:Connect(function()
-                    optionButton.BackgroundTransparency = 0.9
-                    optionButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                    optionButton.TextColor3 = Color3.fromRGB(0, 170, 255)
+                    if name ~= "DungeonSelector" or optionButton.BackgroundTransparency > 0.5 then
+                        optionButton.BackgroundTransparency = 0.9
+                        optionButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                        optionButton.TextColor3 = Color3.fromRGB(0, 170, 255)
+                    end
                 end)
                 
                 optionButton.MouseLeave:Connect(function()
-                    optionButton.BackgroundTransparency = 1
-                    optionButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    if name ~= "DungeonSelector" or optionButton.BackgroundTransparency > 0.5 then
+                        optionButton.BackgroundTransparency = 0.95
+                        optionButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                        optionButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    end
                 end)
                 
                 optionButton.MouseButton1Click:Connect(function()
-                    selected.Text = option
                     if name == "StarSelector" then
+                        selected.Text = option
                         _G.selectedStar = option
+                        optionsFrame.Visible = false
+                        saveConfig()
                     elseif name == "GachaSelector" then
+                        selected.Text = option
                         _G.selectedGacha = option
+                        optionsFrame.Visible = false
+                        saveConfig()
+                    elseif name == "DungeonSelector" then
+                        
+                        if not _G.selectedDungeonDifficulties then
+                            _G.selectedDungeonDifficulties = {}
+                        end
+                        
+                        
+                        local found = false
+                        for i, difficulty in ipairs(_G.selectedDungeonDifficulties) do
+                            if difficulty == option then
+                                
+                                table.remove(_G.selectedDungeonDifficulties, i)
+                                found = true
+                                optionButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                                optionButton.BackgroundTransparency = 0.95
+                                optionButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+                                break
+                            end
+                        end
+                        
+                        if not found then
+                            
+                            table.insert(_G.selectedDungeonDifficulties, option)
+                            optionButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+                            optionButton.BackgroundTransparency = 0.2
+                            optionButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        end
+                        
+                        
+                        local selectedText = #_G.selectedDungeonDifficulties > 0 and 
+                                           table.concat(_G.selectedDungeonDifficulties, ", ") or "None"
+                        selected.Text = selectedText
+                        searchBox.Text = selectedText
+                        
+                        saveConfig()
+                        
+                    else
+                        selected.Text = option
+                        optionsFrame.Visible = false
+                        saveConfig()
                     end
-                    optionsFrame.Visible = false
-                    saveConfig()
                 end)
                 
                 yOffset = yOffset + 35
@@ -566,34 +749,50 @@ local function createDropdown(name, options, parent, position)
         end
     end
     
+    
     createOptionButtons("")
     
-    searchBox.Changed:Connect(function(property)
-        if property == "Text" then
-            createOptionButtons(searchBox.Text)
-        end
-    end)
+    
+    if name ~= "DungeonSelector" then
+        searchBox.Changed:Connect(function(property)
+            if property == "Text" then
+                createOptionButtons(searchBox.Text)
+            end
+        end)
+    end
+    
     
     dropdownButton.MouseButton1Click:Connect(function()
         optionsFrame.Visible = not optionsFrame.Visible
         if optionsFrame.Visible then
             updateOptionsFramePosition()
-            searchBox.Text = selected.Text
-            createOptionButtons(searchBox.Text)
-            searchBox:CaptureFocus()
+            if name ~= "DungeonSelector" then
+                searchBox.Text = selected.Text
+                createOptionButtons(searchBox.Text)
+                searchBox:CaptureFocus()
+            else
+                createOptionButtons("")
+            end
         end
     end)
+    
     
     selected.Focused:Connect(function()
         optionsFrame.Visible = true
         updateOptionsFramePosition()
-        searchBox.Text = selected.Text
-        createOptionButtons(searchBox.Text)
-        searchBox:CaptureFocus()
+        if name ~= "DungeonSelector" then
+            searchBox.Text = selected.Text
+            createOptionButtons(searchBox.Text)
+            searchBox:CaptureFocus()
+        else
+            createOptionButtons("")
+        end
     end)
     
+    
     searchBox.FocusLost:Connect(function(enterPressed)
-        if enterPressed then
+        if enterPressed and name ~= "DungeonSelector" then
+            
             local firstButton = optionsList:FindFirstChildWhichIsA("TextButton")
             if firstButton then
                 selected.Text = firstButton.Text
@@ -608,11 +807,13 @@ local function createDropdown(name, options, parent, position)
         end
     end)
     
+    
     RunService.RenderStepped:Connect(function()
         if optionsFrame.Visible then
             updateOptionsFramePosition()
         end
     end)
+    
     
     local function onMouseClick(input)
         local inBounds = false
@@ -621,6 +822,7 @@ local function createDropdown(name, options, parent, position)
         local frameSize = dropdownContainer.AbsoluteSize
         local optionsPos = optionsFrame.AbsolutePosition
         local optionsSize = optionsFrame.AbsoluteSize
+        
         
         if mousePos.X >= framePos.X and mousePos.X <= framePos.X + frameSize.X and
            mousePos.Y >= framePos.Y and mousePos.Y <= framePos.Y + frameSize.Y then
@@ -633,7 +835,8 @@ local function createDropdown(name, options, parent, position)
             inBounds = true
         end
         
-        if not inBounds then
+        
+        if not inBounds and name ~= "DungeonSelector" then
             optionsFrame.Visible = false
         end
     end
@@ -647,61 +850,105 @@ local function createDropdown(name, options, parent, position)
     return dropdownContainer, selected
 end
 
+
+
 local autoFarmToggle, autoFarmKnob, autoFarmBg = createToggleButton("AutoFarm", "Auto Attack", scrollFrame)
 if autoFarmToggle and autoFarmToggle.Parent then
-    autoFarmToggle.Parent.Position = UDim2.new(0, 30, 0, 35)
+    autoFarmToggle.Parent.Position = UDim2.new(0, 30, 0, 25) 
 else
+    warn("Failed to create Auto Farm toggle")
     return
 end
 
-local autoStarToggle, autoStarKnob, autoStarBg = createToggleButton("AutoStar", "Open Star", scrollFrame)
-if autoStarToggle and autoStarToggle.Parent then
-    autoStarToggle.Parent.Position = UDim2.new(0, 30, 0, 215)
+
+local autoDungeonToggle, autoDungeonKnob, autoDungeonBg = createToggleButton("AutoDungeon", "Auto Dungeon", scrollFrame)
+if autoDungeonToggle and autoDungeonToggle.Parent then
+    autoDungeonToggle.Parent.Position = UDim2.new(0, 30, 0, 55) 
 else
+    warn("Failed to create Auto Dungeon toggle")
     return
 end
+
+
+local dungeonDifficulties = {
+    "Easy",
+    "Medium",
+    "Hard",
+    "Insane",
+    "Crazy",
+    "Nightmare"
+}
+local dungeonDropdown, dungeonSelected = createDropdown("DungeonSelector", dungeonDifficulties, scrollFrame, UDim2.new(0, 30, 0, 95)) 
+if not dungeonDropdown then
+    warn("Failed to create Dungeon difficulty selector dropdown")
+    return
+end
+
+
+
+local autoStarToggle, autoStarKnob, autoStarBg = createToggleButton("AutoStar", "Open Star", scrollFrame)
+if autoStarToggle and autoStarToggle.Parent then
+    autoStarToggle.Parent.Position = UDim2.new(0, 30, 0, 235) 
+else
+    warn("Failed to create Auto Star toggle")
+    return
+end
+
 
 local starOptions = {}
 for i = 1, 22 do
     table.insert(starOptions, "Star_" .. i)
 end
-local starDropdown, starSelected = createDropdown("StarSelector", starOptions, scrollFrame, UDim2.new(0, 30, 0, 260))
+local starDropdown, starSelected = createDropdown("StarSelector", starOptions, scrollFrame, UDim2.new(0, 30, 0, 270)) 
 if not starDropdown then
+    warn("Failed to create Star selector dropdown")
     return
 end
 
+
 local autoRankToggle, autoRankKnob, autoRankBg = createToggleButton("AutoRank", "Auto Rank Up", scrollFrame)
 if autoRankToggle and autoRankToggle.Parent then
-    autoRankToggle.Parent.Position = UDim2.new(0, 30, 0, 125)
+    autoRankToggle.Parent.Position = UDim2.new(0, 30, 0, 165) 
 else
+    warn("Failed to create Auto Rank toggle")
     return
 end
+
+
 
 local formattedGachaList = {}
 for _, gachaName in pairs(worldGachaMap) do
     table.insert(formattedGachaList, gachaName)
 end
+
 table.sort(formattedGachaList)
+
 
 local autoGachaToggle, autoGachaKnob, autoGachaBg = createToggleButton("AutoGacha", "Open Gacha", scrollFrame)
 if autoGachaToggle and autoGachaToggle.Parent then
-    autoGachaToggle.Parent.Position = UDim2.new(0, 30, 0, 305)
+    autoGachaToggle.Parent.Position = UDim2.new(0, 30, 0, 305) 
 else
+    warn("Failed to create Auto Gacha toggle")
     return
 end
 
-local gachaDropdown, gachaSelected = createDropdown("GachaSelector", formattedGachaList, scrollFrame, UDim2.new(0, 30, 0, 350))
+
+local gachaDropdown, gachaSelected = createDropdown("GachaSelector", formattedGachaList, scrollFrame, UDim2.new(0, 30, 0, 340)) 
 if not gachaDropdown then
+    warn("Failed to create Gacha selector dropdown")
     return
 end
+
+
 
 local speedToggle, speedKnob, speedBg = createToggleButton("Speed", "Speed", miscFrame)
 speedToggle.Parent.Position = UDim2.new(0, 20, 0, 10)
 
+
 local claimCodesBtn = Instance.new("TextButton")
 claimCodesBtn.Name = "ClaimCodesBtn"
 claimCodesBtn.Size = UDim2.new(0, 250, 0, 35)
-claimCodesBtn.Position = UDim2.new(0, 20, 0, 55)
+claimCodesBtn.Position = UDim2.new(0, 20, 0, 55) 
 claimCodesBtn.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
 claimCodesBtn.BorderSizePixel = 0
 claimCodesBtn.Text = "Claim All Codes"
@@ -714,23 +961,44 @@ local claimCodesCorner = Instance.new("UICorner")
 claimCodesCorner.CornerRadius = UDim.new(0, 8)
 claimCodesCorner.Parent = claimCodesBtn
 
+
 local function updateUIFromConfig()
+    
     updateToggleState(autoFarmToggle, autoFarmKnob, autoFarmBg, _G.autoEnabled)
+    
+    
+    updateToggleState(autoDungeonToggle, autoDungeonKnob, autoDungeonBg, _G.autoDungeonEnabled)
+    
+    
     updateToggleState(speedToggle, speedKnob, speedBg, _G.speedHack)
+    
+    
     updateToggleState(autoStarToggle, autoStarKnob, autoStarBg, _G.autoSpinEnabled)
+    
+    
     updateToggleState(autoRankToggle, autoRankKnob, autoRankBg, _G.autoRankEnabled)
     
+        
     if starSelected then
         starSelected.Text = _G.selectedStar or "Star_1"
     end
     
+    
+    if dungeonSelected then
+        local selectedText = table.concat(_G.selectedDungeonDifficulties or {"Easy"}, ", ")
+        dungeonSelected.Text = selectedText
+    end
+    
+    
     if gachaSelected then
-        gachaSelected.Text = _G.selectedGacha or "W01-Dragon_Race"
+        gachaSelected.Text = _G.selectedGacha or gachaList[1]
     end
     updateToggleState(autoGachaToggle, autoGachaKnob, autoGachaBg, _G.autoGachaEnabled)
 end
 
+
 updateUIFromConfig()
+
 
 local dragging = false
 local dragStart = nil
@@ -757,6 +1025,7 @@ mainFrame.InputEnded:Connect(function(input)
     end
 end)
 
+
 local function getCodes()
     local codes = {}
     local success, result = pcall(function()
@@ -769,15 +1038,19 @@ local function getCodes()
                 table.insert(codes, code)
             end
         end
+    else
+        warn("Failed to fetch codes from GitHub")
     end
     
     return codes
 end
 
+
 local function claimAllCodes()
     local codes = getCodes()
     
     if #codes > 0 then
+        
         for i, code in ipairs(codes) do
             local args = {
                 [1] = {
@@ -787,21 +1060,30 @@ local function claimAllCodes()
             }
             
             game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("To_Server"):FireServer(unpack(args))
+            wait(0.5) 
         end
+        
+    else
+        warn("No codes found!")
     end
 end
+
 
 _G.selectedStar = "Star_1"
 if not _G.speedHack then _G.speedHack = false end
 
+
 local function connectToggleButton(toggle, knob, bg, globalVar, name, onToggle)
     if not toggle or not toggle.Parent then
+        warn("Failed to connect", name, "toggle - Toggle button is null or destroyed")
         return
     end
     if not knob or not knob.Parent then
+        warn("Failed to connect", name, "toggle - Toggle knob is null or destroyed")
         return
     end
     if not bg or not bg.Parent then
+        warn("Failed to connect", name, "toggle - Toggle background is null or destroyed")
         return
     end
     
@@ -813,7 +1095,12 @@ local function connectToggleButton(toggle, knob, bg, globalVar, name, onToggle)
     end)
 end
 
+
 connectToggleButton(autoFarmToggle, autoFarmKnob, autoFarmBg, "autoEnabled", "Auto Farm")
+
+
+connectToggleButton(autoDungeonToggle, autoDungeonKnob, autoDungeonBg, "autoDungeonEnabled", "Auto Dungeon")
+
 
 connectToggleButton(speedToggle, speedKnob, speedBg, "speedHack", "Speed Hack", function()
     local player = game.Players.LocalPlayer
@@ -824,12 +1111,18 @@ connectToggleButton(speedToggle, speedKnob, speedBg, "speedHack", "Speed Hack", 
     end
 end)
 
-connectToggleButton(autoStarToggle, autoStarKnob, autoStarBg, "autoSpinEnabled", "Auto Star")
+
+connectToggleButton(autoStarToggle, autoStarKnob, autoStarBg, "autoSpinEnabled", "Auto Star", function()
+    if _G.autoSpinEnabled and starSelected then
+    end
+end)
+
 
 starSelected.FocusLost:Connect(function()
     _G.selectedStar = starSelected.Text
     saveConfig()
 end)
+
 
 connectToggleButton(autoRankToggle, autoRankKnob, autoRankBg, "autoRankEnabled", "Auto Rank")
 
@@ -837,12 +1130,14 @@ claimCodesBtn.MouseButton1Click:Connect(function()
     claimCodesBtn.Text = "Claiming..."
     claimCodesBtn.BackgroundColor3 = Color3.fromRGB(150, 100, 0)
     
+    
     claimAllCodes()
     
     wait(2)
     claimCodesBtn.Text = "Claim All Codes"
     claimCodesBtn.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
 end)
+
 
 local function findNearestMonster(playerPosition)
     local workspace = game:GetService("Workspace")
@@ -873,13 +1168,14 @@ local function findNearestMonster(playerPosition)
     return nearestMonster
 end
 
+
 local function autoRankUp()
     if not _G.autoRankEnabled then
         return
     end
     
     local currentTime = tick()
-    if currentTime - lastRankTime >= 5 then
+    if currentTime - lastRankTime >= 5 then 
         lastRankTime = currentTime
         
         local args = {
@@ -893,6 +1189,7 @@ local function autoRankUp()
         game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("To_Server"):FireServer(unpack(args))
     end
 end
+
 
 local function autoSpin()
     if not _G.autoSpinEnabled then
@@ -909,8 +1206,11 @@ local function autoSpin()
         }
         
         game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("To_Server"):FireServer(unpack(args))
+    else
+        warn("No star selected")
     end
 end
+
 
 local function findAndKillMonster()
     if not _G.autoEnabled then
@@ -925,13 +1225,37 @@ local function findAndKillMonster()
     local playerPosition = player.Character.HumanoidRootPart.Position
     local monster = findNearestMonster(playerPosition)
     
+    
+    local dungeonUI = playerGui:FindFirstChild("Dungeon")
+    local inDungeon = false
+    if dungeonUI then
+        local defaultHeader = dungeonUI:FindFirstChild("Default_Header")
+        inDungeon = defaultHeader and defaultHeader.Visible
+        
+        
+        if inDungeon and dungeonEnterTime == 0 then
+            dungeonEnterTime = tick()
+        elseif not inDungeon and dungeonEnterTime > 0 then
+            
+            dungeonEnterTime = 0
+        end
+    end
+    
     if monster then
         if monster:IsA("Model") and monster:FindFirstChild("HumanoidRootPart") then
             local monsterId = monster.Name
             
-            if currentTargetId ~= monsterId then
-                currentTargetId = monsterId
+            
+            if inDungeon and dungeonEnterTime > 0 then
+                local currentTime = tick()
+                local timeSinceEnter = currentTime - dungeonEnterTime
+                
+                
+                if timeSinceEnter >= 5 then
+                    player.Character.HumanoidRootPart.CFrame = monster.HumanoidRootPart.CFrame
+                end
             end
+            
             
             local args = {
                 [1] = {
@@ -942,18 +1266,27 @@ local function findAndKillMonster()
             
             game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("To_Server"):FireServer(unpack(args))
             
-            wait()
-            
-            return true
+            return true 
         end
-    end
-    
-    if currentTargetId then
-        currentTargetId = nil
+    else
+        
+        local args = {
+            [1] = {
+                ["Action"] = "_Mouse_Click"
+            }
+        }
+        
+        game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("To_Server"):FireServer(unpack(args))
+        
+        
+        if currentTargetId then
+            currentTargetId = nil
+        end
     end
     
     return false
 end
+
 
 getgenv().AnimeEternalSpeedEnforce = RunService.Heartbeat:Connect(function()
     if _G.speedHack and player and player.Character and player.Character:FindFirstChild("Humanoid") then
@@ -961,26 +1294,31 @@ getgenv().AnimeEternalSpeedEnforce = RunService.Heartbeat:Connect(function()
     end
 end)
 
+
 getgenv().AnimeEternalUICheck = RunService.Heartbeat:Connect(function()
     if screenGui and not screenGui.Enabled then
         screenGui.Enabled = true
     end
 end)
 
+
 getgenv().AnimeEternalScript = RunService.Heartbeat:Connect(function()
     if _G.autoEnabled then
         local foundMonster = findAndKillMonster()
         if not foundMonster then
-            wait()
+            wait(0.1) 
         end
-    else
-        wait()
     end
     
+    
     autoSpin()
+    
+    
     autoRankUp()
     
+    
     if _G.autoGachaEnabled and _G.selectedGacha then
+        
         local actualGachaName = _G.selectedGacha:match("W%d+%-(.+)")
         if actualGachaName then
             local args = {
@@ -993,9 +1331,57 @@ getgenv().AnimeEternalScript = RunService.Heartbeat:Connect(function()
             game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("To_Server"):FireServer(unpack(args))
         end
     end
+    
+    
+    if _G.autoDungeonEnabled and _G.selectedDungeonDifficulties and #_G.selectedDungeonDifficulties > 0 then
+        
+        local dungeonUI = playerGui:FindFirstChild("Dungeon")
+        if dungeonUI then
+            
+            local defaultHeader = dungeonUI:FindFirstChild("Default_Header")
+            if defaultHeader and defaultHeader.Visible then
+                
+                return
+            end
+            
+            local dungeonNotification = dungeonUI:FindFirstChild("Dungeon_Notification")
+            if dungeonNotification and dungeonNotification.Visible then
+                local textLabel = dungeonNotification:FindFirstChild("TextLabel")
+                if textLabel then
+                    local notificationText = textLabel.Text
+                    
+                    local difficulty = notificationText:match('Dungeon%s+(%w+)</font>')
+                    
+                    if difficulty then
+                        
+                        for _, selectedDifficulty in ipairs(_G.selectedDungeonDifficulties) do
+                            if selectedDifficulty == difficulty then
+                                
+                                local args = {
+                                    [1] = {
+                                        ["Action"] = "_Enter_Dungeon",
+                                        ["Name"] = "Dungeon_" .. difficulty
+                                    }
+                                }
+                                
+                                game:GetService("ReplicatedStorage"):WaitForChild("Events"):WaitForChild("To_Server"):FireServer(unpack(args))
+                                
+                                
+                                wait(0.5) 
+                                dungeonNotification.Visible = false
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
 end)
 
+
 connectToggleButton(autoGachaToggle, autoGachaKnob, autoGachaBg, "autoGachaEnabled", "Auto Gacha")
+
 
 gachaSelected.FocusLost:Connect(function()
     _G.selectedGacha = gachaSelected.Text
