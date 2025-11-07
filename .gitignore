@@ -6,4 +6,6 @@ none.lua
 GUIFramework.lua
 GUI_GUIDE.md
 ExampleScript.lua
+TestAllFeatures.lua
+testfeature.lua
 MainEdit.lua
