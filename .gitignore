@@ -1,4 +1,5 @@
 AnimeEternalEdit.lua
+AnimeWeaponEdit.lua
 RaiseAnimalEdit.lua
 HubFrameworkEdit.lua
 info.txt
@@ -9,3 +10,5 @@ ExampleScript.lua
 TestAllFeatures.lua
 testfeature.lua
 MainEdit.lua
+a.lua
+b.lua
